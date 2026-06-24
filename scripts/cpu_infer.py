@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import argparse
 import os
+import shutil
 import tempfile
 from pathlib import Path
 
@@ -74,6 +75,22 @@ def image_config(image_mode: str) -> dict:
     return {"base_size": 1024, "image_size": 640, "crop_mode": True}
 
 
+def output_stem(input_path: str, suffix: str = "") -> str:
+    stem = Path(input_path).stem
+    return f"{stem}{suffix}" if suffix else stem
+
+
+def persist_result(output_dir: str, destination_stem: str) -> Path | None:
+    result_file = Path(output_dir) / "result.md"
+    if not result_file.exists():
+        return None
+    destination = Path(output_dir) / f"{destination_stem}.md"
+    if result_file.resolve() != destination.resolve():
+        shutil.copyfile(result_file, destination)
+    print(f"\nOCR output written to {destination}", flush=True)
+    return destination
+
+
 def load_model(model_dir: str):
     device = preferred_device()
     install_cuda_shim(device)
@@ -89,7 +106,7 @@ def load_model(model_dir: str):
     return tokenizer, model
 
 
-def run_single_image(model, tokenizer, image_file: str, args) -> None:
+def run_single_image(model, tokenizer, image_file: str, args, output_stem_value: str | None = None) -> None:
     config = image_config(args.image_mode)
     model.infer(
         tokenizer,
@@ -102,6 +119,7 @@ def run_single_image(model, tokenizer, image_file: str, args) -> None:
         save_results=True,
         **config,
     )
+    persist_result(args.output_dir, output_stem_value or output_stem(image_file))
 
 
 def run(args) -> None:
@@ -121,6 +139,7 @@ def run(args) -> None:
             ngram_window=1024,
             save_results=True,
         )
+        persist_result(args.output_dir, output_stem(args.pdf))
         return
 
     if args.image_file:
@@ -133,7 +152,14 @@ def run(args) -> None:
             raise ValueError(f"No supported images found in {args.image_dir}")
         for index, image_file in enumerate(image_files, start=1):
             print(f"[{index}/{len(image_files)}] {image_file}", flush=True)
-            run_single_image(model, tokenizer, image_file, args)
+            rel_stem = Path(image_file).relative_to(args.image_dir).with_suffix("")
+            run_single_image(
+                model,
+                tokenizer,
+                image_file,
+                args,
+                output_stem_value=str(rel_stem).replace(os.sep, "__"),
+            )
         return
 
     raise ValueError("Pass one of --pdf, --image_file, or --image_dir")

@@ -82,6 +82,8 @@ Markdown outputs are written to `outputs/`. The SGLang server log is written to 
 
 The CPU image supports `--pdf`, `--image_file`, and `--image_dir`. It does not accept GPU/SGLang options such as `--gpu`, `--concurrency`, or `--server_log`.
 
+OCR text is printed to container stdout and also written as Markdown files in `/workspace/outputs`.
+
 PDF:
 
 ```bash
@@ -118,6 +120,8 @@ docker run --rm \
   --image_file /data/page.png \
   --output_dir /workspace/outputs
 ```
+
+For PDFs and single images, the stable output file is named after the input, for example `outputs/document.md` or `outputs/page.md`. For image directories, each image gets its own Markdown file under `outputs/`, with nested path separators replaced by `__`.
 
 ## Hugging Face Token
 
