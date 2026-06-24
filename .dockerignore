@@ -1,0 +1,13 @@
+.git
+.gitignore
+.DS_Store
+log/
+outputs/
+models/
+*.log
+*.pdf
+*.png
+*.jpg
+*.jpeg
+*.webp
+*.bmp

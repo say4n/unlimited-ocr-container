@@ -1,0 +1,14 @@
+# Local runtime outputs
+log/
+outputs/
+models/
+
+# Python/cache noise
+__pycache__/
+*.py[cod]
+.pytest_cache/
+
+# OS/editor noise
+.DS_Store
+.vscode/
+.idea/
