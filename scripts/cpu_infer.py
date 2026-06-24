@@ -16,6 +16,20 @@ PROMPT_SINGLE = "<image>document parsing."
 PROMPT_MULTI = "<image>Multi page parsing."
 
 
+def install_cpu_cuda_shim() -> None:
+    if torch.cuda.is_available():
+        return
+
+    def tensor_cuda(self, device=None, non_blocking=False, memory_format=torch.preserve_format):
+        return self.to(device="cpu", non_blocking=non_blocking, memory_format=memory_format)
+
+    def module_cuda(self, device=None):
+        return self.to("cpu")
+
+    torch.Tensor.cuda = tensor_cuda
+    torch.nn.Module.cuda = module_cuda
+
+
 def pdf_to_images(pdf_path: str, dpi: int) -> list[str]:
     import fitz
 
@@ -47,12 +61,13 @@ def image_config(image_mode: str) -> dict:
 
 
 def load_model(model_dir: str):
+    install_cpu_cuda_shim()
     tokenizer = AutoTokenizer.from_pretrained(model_dir, trust_remote_code=True)
     model = AutoModel.from_pretrained(
         model_dir,
         trust_remote_code=True,
         use_safetensors=True,
-        torch_dtype=torch.float32,
+        dtype=torch.float32,
     )
     model = model.eval().to("cpu")
     return tokenizer, model
