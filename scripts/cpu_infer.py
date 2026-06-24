@@ -91,6 +91,28 @@ def persist_result(output_dir: str, destination_stem: str) -> Path | None:
     return destination
 
 
+def persist_visualizations(output_dir: str, destination_stem: str, page_count: int | None = None) -> list[Path]:
+    output_path = Path(output_dir)
+    destinations = []
+    if page_count is None:
+        source = output_path / "result_with_boxes.jpg"
+        if source.exists():
+            destination = output_path / f"{destination_stem}_with_boxes.jpg"
+            if source.resolve() != destination.resolve():
+                shutil.copyfile(source, destination)
+            destinations.append(destination)
+    else:
+        for page_index in range(page_count):
+            source = output_path / f"result_with_boxes_{page_index}.jpg"
+            if source.exists():
+                destination = output_path / f"{destination_stem}_page_{page_index + 1:04d}_with_boxes.jpg"
+                shutil.copyfile(source, destination)
+                destinations.append(destination)
+    for destination in destinations:
+        print(f"Visualization written to {destination}", flush=True)
+    return destinations
+
+
 def load_model(model_dir: str):
     device = preferred_device()
     install_cuda_shim(device)
@@ -120,6 +142,7 @@ def run_single_image(model, tokenizer, image_file: str, args, output_stem_value:
         **config,
     )
     persist_result(args.output_dir, output_stem_value or output_stem(image_file))
+    persist_visualizations(args.output_dir, output_stem_value or output_stem(image_file))
 
 
 def run(args) -> None:
@@ -140,6 +163,7 @@ def run(args) -> None:
             save_results=True,
         )
         persist_result(args.output_dir, output_stem(args.pdf))
+        persist_visualizations(args.output_dir, output_stem(args.pdf), page_count=len(image_files))
         return
 
     if args.image_file:
