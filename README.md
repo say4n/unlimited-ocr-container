@@ -13,6 +13,8 @@ ghcr.io/say4n/unlimited-ocr-container:gpu
 
 Use the GPU image when you have NVIDIA Docker support. Use the CPU image only for testing or small jobs; it is much slower.
 
+The CPU image is published for `linux/amd64` and `linux/arm64`, so it works on Intel/AMD Linux machines and Apple Silicon Docker. The GPU image is published for `linux/amd64`.
+
 ## Requirements
 
 GPU:
@@ -167,6 +169,8 @@ The GitHub Actions workflow at `.github/workflows/publish.yml` builds and pushes
 - `ghcr.io/say4n/unlimited-ocr-container:gpu`
 - `ghcr.io/say4n/unlimited-ocr-container:cpu-<commit-sha>`
 - `ghcr.io/say4n/unlimited-ocr-container:gpu-<commit-sha>`
+
+The `cpu` tags are multi-arch (`linux/amd64`, `linux/arm64`). The `gpu` tags are `linux/amd64`.
 
 ## Development
 
