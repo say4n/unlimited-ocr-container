@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""CPU-oriented Transformers runner for baidu/Unlimited-OCR."""
+"""CPU/MPS-oriented Transformers runner for baidu/Unlimited-OCR."""
 
 from __future__ import annotations
 
@@ -16,16 +16,30 @@ PROMPT_SINGLE = "<image>document parsing."
 PROMPT_MULTI = "<image>Multi page parsing."
 
 
-def install_cpu_cuda_shim() -> None:
+def preferred_device() -> torch.device:
+    mps_backend = getattr(torch.backends, "mps", None)
+    if mps_backend is not None and mps_backend.is_available():
+        return torch.device("mps")
+    return torch.device("cpu")
+
+
+def move_tensor(tensor: torch.Tensor, device: torch.device) -> torch.Tensor:
+    if device.type in {"cpu", "mps"} and tensor.is_floating_point() and tensor.dtype == torch.bfloat16:
+        tensor = tensor.float()
+    return tensor.to(device=device)
+
+
+def install_cuda_shim(device: torch.device) -> None:
     if torch.cuda.is_available():
         return
 
     def tensor_cuda(self, device=None, non_blocking=False, memory_format=torch.preserve_format):
-        return self.to(device="cpu", non_blocking=non_blocking, memory_format=memory_format)
+        return move_tensor(self, selected_device)
 
     def module_cuda(self, device=None):
-        return self.to("cpu")
+        return self.to(selected_device)
 
+    selected_device = device
     torch.Tensor.cuda = tensor_cuda
     torch.nn.Module.cuda = module_cuda
 
@@ -61,7 +75,9 @@ def image_config(image_mode: str) -> dict:
 
 
 def load_model(model_dir: str):
-    install_cpu_cuda_shim()
+    device = preferred_device()
+    install_cuda_shim(device)
+    print(f"Using device: {device}", flush=True)
     tokenizer = AutoTokenizer.from_pretrained(model_dir, trust_remote_code=True)
     model = AutoModel.from_pretrained(
         model_dir,
@@ -69,7 +85,7 @@ def load_model(model_dir: str):
         use_safetensors=True,
         dtype=torch.float32,
     )
-    model = model.eval().to("cpu")
+    model = model.eval().to(device)
     return tokenizer, model
 
 
@@ -125,7 +141,7 @@ def run(args) -> None:
 
 def parse_args():
     parser = argparse.ArgumentParser(
-        description="CPU Transformers inference for baidu/Unlimited-OCR.",
+        description="CPU/MPS Transformers inference for baidu/Unlimited-OCR.",
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
     )
     parser.add_argument("--image_file", default="", help="Single image to OCR")

@@ -15,6 +15,8 @@ Use the GPU image when you have NVIDIA Docker support. Use the CPU image only fo
 
 The CPU image is published for `linux/amd64` and `linux/arm64`, so it works on Intel/AMD Linux machines and Apple Silicon Docker. The GPU image is published for `linux/amd64`.
 
+Apple Silicon Docker runs Linux containers, so the CPU image cannot access the macOS MPS backend or the Apple GPU. The bundled runner prefers MPS only when it is run natively on macOS with an MPS-enabled PyTorch build.
+
 ## Requirements
 
 GPU:
