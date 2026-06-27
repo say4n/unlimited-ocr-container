@@ -1,0 +1,65 @@
+#!/usr/bin/env bash
+# ocrpdf — OCR a PDF with the unlimited-ocr GPU container and emit clean Markdown.
+#
+#   ocrpdf documento.pdf                 # markdown limpo no stdout
+#   ocrpdf - < documento.pdf             # lê o PDF do stdin (útil por SSH)
+#   ocrpdf doc.pdf --html layout.html    # também grava o HTML posicionado
+#   ocrpdf doc.pdf --raw                 # saída crua do modelo (tags <|det|>)
+#
+# Variáveis (com defaults): OCR_IMAGE, OCR_MODELS, OCR_CONVERTER,
+#                           OCR_CONCURRENCY, OCR_IMAGE_MODE
+set -euo pipefail
+
+HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+IMAGE="${OCR_IMAGE:-ghcr.io/say4n/unlimited-ocr-container:gpu}"
+MODELS="${OCR_MODELS:-$PWD/models}"
+CONVERTER="${OCR_CONVERTER:-$HERE/grounding_to_markdown.py}"
+CONCURRENCY="${OCR_CONCURRENCY:-6}"
+MODE="${OCR_IMAGE_MODE:-gundam}"
+
+if [ $# -lt 1 ]; then
+  echo "uso: ocrpdf <arquivo.pdf | -> [--html saida.html] [--raw]" >&2
+  exit 2
+fi
+IN="$1"; shift
+WANT_HTML=""; RAW=""
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --html) WANT_HTML="${2:?--html requer um caminho}"; shift 2;;
+    --raw)  RAW=1; shift;;
+    *) echo "argumento desconhecido: $1" >&2; exit 2;;
+  esac
+done
+
+mkdir -p "$MODELS"
+WORK="$(mktemp -d)"; trap 'rm -rf "$WORK"' EXIT
+mkdir -p "$WORK/data" "$WORK/outputs"
+if [ "$IN" = "-" ]; then
+  cat > "$WORK/data/input.pdf"; PDF="input.pdf"
+else
+  [ -f "$IN" ] || { echo "arquivo não encontrado: $IN" >&2; exit 1; }
+  cp -- "$IN" "$WORK/data/"; PDF="$(basename -- "$IN")"
+fi
+
+# escolhe a GPU com mais VRAM livre (cai para 0 se nvidia-smi não existir)
+GPU="$(nvidia-smi --query-gpu=index,memory.free --format=csv,noheader,nounits 2>/dev/null \
+       | sort -t, -k2 -nr | head -1 | cut -d, -f1 | tr -d ' ')"
+GPU="${GPU:-0}"
+echo "ocrpdf: GPU=$GPU imagem=$IMAGE arquivo=$PDF" >&2
+
+docker run --rm --gpus all \
+  -v "$WORK/data:/data:ro" \
+  -v "$WORK/outputs:/workspace/outputs" \
+  -v "$MODELS:/models" \
+  "$IMAGE" \
+  --pdf "/data/$PDF" --output_dir /workspace/outputs \
+  --concurrency "$CONCURRENCY" --gpu "$GPU" --image_mode "$MODE" >&2
+
+if [ -n "$RAW" ]; then
+  cat "$WORK"/outputs/*_page_*.md
+elif [ -n "$WANT_HTML" ]; then
+  python3 "$CONVERTER" "$WORK/outputs" --md - --gfm --html "$WANT_HTML"
+else
+  python3 "$CONVERTER" "$WORK/outputs" --md - --gfm
+fi
